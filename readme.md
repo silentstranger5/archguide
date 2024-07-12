@@ -278,35 +278,20 @@ Ideally, you should check out a list of mirrors and configure it so your downloa
 But in most cases it is configured automatically by reflector, and you probably should not mess with it.
 
 Now, our disk is partitioned, formatted, and mounted. We can use it now from our live environment.
-Firstly, let's use a pacstrap script to install the bare basics on our disk.
+We can finally install a system on our hard drive along with all necessary packages.
+
+You can choose any packages you want, but I want to go with the lazy method here.
+I will install everything which is available on the live environment.
+What am I doing here? Firstly, I install bare minimum with the `pacstrap` script.
+Then, I list all installed packages in my live environment with the `pacman` command.
+After that, I temporarily chage root of my system to `/mnt` using `chroot`, so that I can interact with my system on the hard drive.
+Lastly, I install all packages from this list, and leave this temporary environment (we shall come back here soon).
 
 ```
 pacstrap -K /mnt base linux linux-firmware
-```
-
-Those packages are absolute minimum and not include things that we would need later.
-Downloading would probably take some time.
-To install additional packages, let's temporarily change our root directory to our mount point.
-
-```
+pacman -Qqe > /mnt/package_list.txt
 arch-chroot /mnt
-```
-
-Now let's install additional packages using a `pacman` package manager.
-You can read about additional packages at the guide page, but my list is as follows.
-
-- CPU microcode: `intel-ucode`
-- Filesystem utilities: `e2fsprogs`
-- Console text editor: `nano`
-- Documentation packages: `man-db`, `man-pages` and `texinfo`
-
-```
-pacman -S intel-ucode e2fsprogs nano man-db man-pages texinfo
-```
-
-Now let's leave our temporary environment (we will come back here very soon) and go back to the live image:
-
-```
+pacman -S --needed - < package_list.txt
 exit
 ```
 
@@ -331,25 +316,21 @@ arch-chroot /mnt
 
 ### Set up time zone
 
-We need to configure our time zone. To look at list of global zones, type
+We need to configure our time zone. Let's take a look at the available time zones.
+Unfortunately, `timedatectl` is unavailable via `chroot` environment, so we have to deal with a script.
 
 ```
-ls /usr/share/zoneinfo/ | less
+find /usr/share/zoneinfo/ | sed 's/\/usr\/share\/zoneinfo\///' | sort | less
 ```
 
-Then, to list all regions in the zone, type
+Now, let's create a symbolic link to our time zone.
 
 ```
-ls /usr/share/zoneinfo/Europe/ | less
+ln -sf /usr/share/zoneinfo/Zone/Region /etc/localtime
 ```
 
-Change Europe to your global zone here. After you found your time region, set it up with
-
-```
-ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime
-```
-
-Change Berlin to your region here. Now type this.
+Replace `Zone/Region` with your actual time zone, like 'Europe/Berlin'.
+Now let's set hardware clock from the system clock.
 
 ```
 hwclock --systohc
@@ -381,6 +362,21 @@ LANG=en_US.UTF-8
 
 If you want to set your language to something else, replace en_US... with your locale.
 Now, save it and exit ('CTRL+O', 'Enter', 'CTRL+X').
+
+Finally, you can set up keymap and terminal font in console configuration file.
+
+```
+nano /etc/vconsole.conf
+```
+
+You can set up keymap with `KEYMAP` variable, and font with `FONT`. For example:
+
+```
+KEYMAP=us
+FONT=ter-124b
+```
+
+Beware that you have to have your font installed as a package on your system (like `kbd` or `terminus-font`).
 
 ## Network configuration
 
@@ -528,7 +524,7 @@ Now let's configure it. You can set it up as you like, but the easiest (although
 It allows to take care of all users at once, and still requires authentification.
 
 ```
-nano /etc/sudoers
+EDITOR=nano visudo /etc/sudoers
 ```
 
 Find line with 'Defaults targetpw'. Remove hash sign from beggining of this line and the next one.
